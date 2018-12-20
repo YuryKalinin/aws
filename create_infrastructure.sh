@@ -37,7 +37,6 @@ start_vm()
 
   #  [--block-device-mappings <value>]
   #  [--placement <value>]
-    --user-data <value>]
 }
 
 get_dns_name()
