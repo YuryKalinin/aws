@@ -50,7 +50,7 @@ aws ec2 describe-instances --instance-ids ${instance} \
 
 start()
 {
-  start_vm 10.3.1.71 associate-public-ip-address ${USER_NAME}-vm1
+  start_vm 10.3.1.71 associate-public-ip-address ${USER_NAME}-vm1 file://${PWD}/initial-command.sh
   for i in {2..3}; do
     start_vm 10.3.1.$((100+i)) no-associate-public-ip-address ${USER_NAME}-vm$i
   done
