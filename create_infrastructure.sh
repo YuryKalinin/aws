@@ -1,44 +1,64 @@
 #!/bin/bash
 
-image_id=ami-09693313102a30b2c
-instance_type=t2.micro
-vpc_id=vpc-0e4dfd64aef6a44fc
-key_name=user7
-#security_group=sg-0f0cc75216aa3485b
-subnet_id=subnet-0a8edbfe14d168679
-shutdown_type=stop
-tags="ResourceType=instance,Tags=[{Key=Installation_id,Value=user7-1},{Key=Name,Value=user7-vm1}]"
+USER_NAME=user7
+IMAGE_ID=ami-02fc24d56bc5f3d67
+#IMAGE_ID=ami-09693313102a30b2c
+INSTANCE_TYPE=t2.micro
+VPC_ID=vpc-0e4dfd64aef6a44fc
+KEY_NAME=user7
+SUBNET_ID=subnet-0a8edbfe14d168679
+SHUTDOWN_TYPE=stop
+TAGS="ResourceType=instance,Tags=[{Key=installation_id,Value=${USER_NAME}-1},{Key=Name,Value=NAME}]"
 
-#$0 - script itself
-#$1 - first argument
-
-start()
+start_vm()
 {
- private_ip_address="10.3.1.71"
-  public_ip=associate-public-ip-address
+  local private_ip_address="$1"
+  local public_ip="$2"
+  local name="$3"
 
-aws ec2 run-instances \
-    --image-id "$image_id" \
-    --instance-type "$instance_type" \
-    --key-name "$key_name" \
-    --subnet-id "$subnet_id" \
-    --instance-initiated-shutdown-behavior "$shutdown_type" \
-    --private-ip-address "$private_ip_address"\
+  local tags=$(echo $TAGS | sed s/NAME/$name/)
+  # local tags=${TAGS/NAME/$name}
+
+  aws ec2 run-instances \
+    --image-id "$IMAGE_ID" \
+    --instance-type "$INSTANCE_TYPE" \
+    --key-name "$KEY_NAME" \
+    --subnet-id "$SUBNET_ID" \
+    --instance-initiated-shutdown-behavior "$SHUTDOWN_TYPE" \
+    --private-ip-address "$private_ip_address" \
     --tag-specifications "$tags" \
-    --${public_ip} 
+    --${public_ip} \
+    | jq -r .Instances[0].InstanceId
+
+
+  # --security-groups "$security_group" \
 
   #  [--block-device-mappings <value>]
   #  [--placement <value>]
   #  [--user-data <value>]
-  #  [--security-groups <value>]
+}
 
+get_dns_name()
+{
+local instance="$1"
+aws ec2 describe-instances --instance-ids ${instance} \
+| jq -r '.Reservations[0].Instances[0].NetworkInterfaces[0].Association.PublicDnsName'
+}
+
+
+start()
+{
+  start_vm 10.3.1.71 associate-public-ip-address ${USER_NAME}-vm1
+  for i in {2..3}; do
+    start_vm 10.3.1.$((100+i)) no-associate-public-ip-address ${USER_NAME}-vm$i
+  done
 }
 
 stop()
 {
   ids=($(
     aws ec2 describe-instances \
-    --query 'Reservations[*].Instances[?KeyName==`'$key_name'`].InstanceId' \
+    --query 'Reservations[*].Instances[?KeyName==`'$KEY_NAME'`].InstanceId' \
     --output text
   ))
   aws ec2 terminate-instances --instance-ids "${ids[@]}"
@@ -48,9 +68,12 @@ if [ "$1" = start ]; then
   start
 elif [ "$1" = stop ]; then
   stop
-else cat <<EOF
+else
+  cat <<EOF
 Usage:
 
- $0 start|stop
+  $0 start|stop
 EOF
+  exit 1
 fi
+
